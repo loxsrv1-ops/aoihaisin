@@ -16,14 +16,15 @@ from pathlib import Path
 BRANCH = "origin/claude/laughing-darwin-tl18eq"
 
 # 理由・動機の決めつけになりやすい形
-REASON = [r"からです", r"と分かった", r"と気づいた", r"だったから", r"ためです"]
+# 「〜したのは〜からです」の形に絞る（気持ちの説明の「〜からです」は拾わない）
+REASON = [r"のは[^。]*(から|ため)です", r"と分かった", r"と気づいた"]
 # 人間関係・行動・未来を全否定・全肯定で言い切りやすい語
 ABSOLUTE = ["誰にも", "誰も", "いつも", "一度も", "全く", "まったく", "必ず", "絶対", "決して", "ずっと", "何もかも", "すべて", "全て"]
 # 占いの申し込みと紛らわしい語（相談者の仕事の意味で使っていないか）
 CONFUSING = ["依頼", "お申し込み", "申込"]
 # 用途ごとの禁止の決まり文句
 BANNED = {
-    "honkantei": ["結論から、お伝えします", "この問いに、お答えします", "では、", "ここからは"],
+    "honkantei": ["結論から、お伝えします", "この問いに、お答えします", r"(^|。)\s*では、", r"(^|。)\s*ここからは"],
     "free": ["お待たせ致しました", "初穂料", "シート"],
     "line": ["シート", "初穂料"],
 }
@@ -69,31 +70,41 @@ def main():
         line = strip_quotes(raw)
         for p in REASON:
             if re.search(p, line):
-                add(i, "理由・動機の決めつけ？", p, raw)
+                add(i, "理由・動機の決めつけ？", "〜のは〜からです" if p.startswith("のは") else p, raw)
         for w in ABSOLUTE:
             if w in line:
                 add(i, "全否定・全肯定の断定？", w, raw)
         for w in CONFUSING:
-            if w in line:
+            if w in line and not re.search(r"鑑定[をのにへ]?(ご|お)?" + w, line):
                 add(i, "占いの申込と紛らわしい語？", w, raw)
         for w in BANNED.get(a.mode, []):
-            if w in line:
-                add(i, "使わない決まりの言い回し", w, raw)
+            if re.search(w, line.strip()):
+                add(i, "使わない決まりの言い回し", w.replace("(^|。)\\s*", ""), raw)
         for w in metaphors:
             if w in line:
                 add(i, "比喩の軸以外のたとえ？", w, raw)
         if a.mode in ("free", "honkantei") and EMOJI.search(line):
             add(i, "鑑定文に絵文字", EMOJI.search(line).group(0), raw)
 
-    # 段落の入り方のくり返し（行頭2文字が同じ行が3回以上）
+    # 段落の入り方のくり返し：段落の先頭（空行の次の行）で、頭の2文字が同じものが3回以上
     starts = {}
+    prev_blank = True
     for i, raw in enumerate(lines, 1):
         s = raw.strip()
-        if len(s) >= 2:
+        if not s:
+            prev_blank = True
+            continue
+        if prev_blank and len(s) >= 2 and s[0] not in "・「":
             starts.setdefault(s[:2], []).append(i)
+        prev_blank = False
     for head, ns in starts.items():
-        if len(ns) >= 3 and head not in ("・", "「"):
-            hits.append(f"     ［入り方のくり返し？］行頭「{head}」が{len(ns)}回: {', '.join(map(str, ns[:8]))}行目")
+        if len(ns) >= 3:
+            hits.append(f"     ［段落の入り方のくり返し？］段落の頭「{head}」が{len(ns)}回: {', '.join(map(str, ns[:8]))}行目")
+    # 3行続けて同じ頭で始まる
+    for i in range(len(lines) - 2):
+        heads = [lines[i + k].strip()[:2] for k in range(3)]
+        if all(len(h) == 2 for h in heads) and len(set(heads)) == 1 and heads[0][0] not in "・「":
+            hits.append(f"     ［3行続けて同じ入り方？］「{heads[0]}」: {i + 1}〜{i + 3}行目")
 
     body = strip_quotes(text)
     for w in OVERUSE:
