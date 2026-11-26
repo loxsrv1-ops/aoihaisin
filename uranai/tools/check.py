@@ -113,7 +113,9 @@ def main():
             hits.append(f"     ［同じ言葉の多用？］「{w}」が{c}回")
 
     chars = len(text.replace("\n", ""))
-    print(f"文字数：{chars}字" + ("（本鑑定の目安は7,000〜10,000字）" if a.mode == "honkantei" else ""))
+    print(f"文字数：{chars}字（参考。文字数を満たすために中身を足さない）")
+    if a.mode == "honkantei" and (chars < 5500 or chars > 10000):
+        hits.insert(0, f"     ［文字数］{chars}字。本鑑定の目安は7,000字前後（5,500字未満か10,000字超なので見直す。足すより、抜けている要素がないかを確かめる）")
     if hits:
         print("見直す箇所：")
         print("\n".join(hits))
