@@ -2,6 +2,7 @@
 """書き上げた鑑定文・返信文を、くり返しやすいミスの形で機械的に洗い出す。
 
   python3 uranai/tools/check.py --mode honkantei --char tsuruha 下書き.txt
+  python3 uranai/tools/check.py --mode honkantei --char tsuruha --free 無料鑑定.txt 下書き.txt
   （--mode は free / honkantei / line。ファイルを省くと標準入力から読む）
 
 ・「」の中（本人の言葉の引用）は調べない
@@ -52,10 +53,61 @@ def char_metaphors(char):
     return [w.strip() for w in re.split(r"[、,／/]", m.group(1)) if w.strip()] if m else []
 
 
+STOP = {"これから", "どんな", "数年", "今後", "形", "流れ", "中"}
+
+
+def keywords(q):
+    words = re.findall(r"[一-龥々]{2,}|[ァ-ヶー]{2,}", q)
+    return [w for w in words if w not in STOP]
+
+
+def found(word, body):
+    if word in body:
+        return True
+    # 3文字以上の語は、2文字の部分が出ていればよしとする（例：資格試験→試験）
+    return len(word) >= 3 and any(word[i:i + 2] in body for i in range(len(word) - 1))
+
+
+def check_against_free(free_text, body):
+    """無料鑑定の⑩の問い・引っかかり・時期の種が、本鑑定で扱われているかを見る。"""
+    out = []
+    lines = [l.strip() for l in free_text.split("\n")]
+    qs = []
+    for i, l in enumerate(lines):
+        if l.startswith("ただ、"):
+            for l2 in lines[i + 1:]:
+                if l2.startswith("・"):
+                    qs.append(l2.lstrip("・"))
+                elif qs:
+                    break
+            break
+    if not qs:
+        out.append("     ［無料鑑定］「ただ、」のあとの問い（・の行）が見つかりませんでした")
+    for n, q in enumerate(qs, 1):
+        kws = keywords(q)
+        hit = [w for w in kws if found(w, body)]
+        miss = [w for w in kws if not found(w, body)]
+        if not kws or len(hit) * 2 < len(kws):
+            out.append(f"     ［答えていない可能性］問い{n}「{q}」→ 本鑑定に出てこない語：{'、'.join(miss) or '（中心語なし）'}")
+        else:
+            out.append(f"     ［問い{n}は扱われていそう］{q}（出てこない語：{'、'.join(miss) or 'なし'}）")
+    for l in lines:
+        if "聞き取れませんでした" in l or "見えにくく" in l or "読み切れ" in l:
+            out.append(f"     ［引っかかり（問い1で答えているか確かめる）］{l[:70]}")
+            break
+    for i, l in enumerate(lines):
+        if l.startswith("時期について"):
+            seed = next((x for x in lines[i + 1:] if x), "")
+            out.append(f"     ［時期の種（本鑑定の時期と食い違っていないか確かめる）］{seed[:70]}")
+            break
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["free", "honkantei", "line"], required=True)
     ap.add_argument("--char", default="")
+    ap.add_argument("--free", help="本鑑定のとき、対応する無料鑑定文のファイル（問い・引っかかり・時期の種の対応を見る）")
     ap.add_argument("file", nargs="?")
     a = ap.parse_args()
     text = Path(a.file).read_text(encoding="utf-8") if a.file else sys.stdin.read()
@@ -111,6 +163,9 @@ def main():
         c = body.count(w)
         if c >= 4:
             hits.append(f"     ［同じ言葉の多用？］「{w}」が{c}回")
+
+    if a.free:
+        hits.extend(check_against_free(Path(a.free).read_text(encoding="utf-8"), text))
 
     chars = len(text.replace("\n", ""))
     print(f"文字数：{chars}字（参考。文字数を満たすために中身を足さない）")
