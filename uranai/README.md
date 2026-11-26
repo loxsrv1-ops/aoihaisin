@@ -7,6 +7,7 @@
 - `modes/` … 用途ごとの手順。`free_reading.md`＝無料鑑定、`honkantei.md`＝本鑑定、`line_reply.md`＝LINE返信（受付から購入・ヒアリング・途中の一言まで）
 - `dist/` … 上の3つをつなげた、貼り付け用のプロンプト（自動で作るので直接直さない）
 - `knowhow.md` … ユーザーが集めた占い集客のノウハウの要点（プロンプトの土台）
+- `tools/kyusei.py` … 九星気学の計算（本命星・月命星・年の巡り）。`python3 uranai/tools/kyusei.py 1967-09-13 2026 2027`
 
 ## 使い方
 - 貼り付けるのは `dist/` の中のファイル
