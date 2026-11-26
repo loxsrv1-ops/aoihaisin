@@ -46,6 +46,15 @@ PALACES = [
 ]
 
 
+# 年盤の宮と方角（PALACES と同じ並び）
+DIRS = ["中宮", "北西", "西", "北東", "南", "北", "南西", "東", "南東"]
+OPPOSITE = {"北": "南", "南": "北", "東": "西", "西": "東",
+            "北東": "南西", "南西": "北東", "南東": "北西", "北西": "南東"}
+# 十二支の方角（子＝北 から）。艮・坤・巽・乾は2つの支を含むが、ここでは宮ごと凶方として扱う（安全側）
+BRANCH_DIR = ["北", "北東", "北東", "東", "南東", "南東", "南", "南西", "南西", "西", "北西", "北西"]
+GENERATES = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
+
+
 def wrap9(n):
     n %= 9
     return 9 if n == 0 else n
@@ -93,6 +102,48 @@ def palace_in_year(honmei, kyusei_year):
     return PALACES[(honmei - center) % 9]
 
 
+def year_board(kyusei_year):
+    """方角 → その年にその方角へ回る星"""
+    center = year_star(kyusei_year)
+    return {DIRS[i]: wrap9(center + i) for i in range(9)}
+
+
+def relation(honmei, star):
+    a, b = GOGYO[honmei], GOGYO[star]
+    if a == b:
+        return "比和"
+    if GENERATES[b] == a:
+        return "生気"  # その星が本命星を生む
+    if GENERATES[a] == b:
+        return "退気"  # 本命星がその星を生む
+    return None
+
+
+def lucky_directions(honmei, kyusei_year):
+    """その年の吉方位と、除いた凶方位（理由つき）。"""
+    board = year_board(kyusei_year)
+    where = {star: d for d, star in board.items()}
+    bad = {}
+    def mark(d, why):
+        if d and d != "中宮":
+            bad.setdefault(d, []).append(why)
+    mark(where[5], "五黄殺")
+    if where[5] != "中宮":
+        mark(OPPOSITE[where[5]], "暗剣殺")
+    mark(OPPOSITE[BRANCH_DIR[(kyusei_year - 4) % 12]], "歳破")
+    if where[honmei] != "中宮":
+        mark(where[honmei], "本命殺")
+        mark(OPPOSITE[where[honmei]], "本命的殺")
+    good = []
+    for d in DIRS[1:]:
+        if d in bad:
+            continue
+        rel = relation(honmei, board[d])
+        if rel and board[d] != 5:
+            good.append((d, board[d], rel))
+    return good, bad
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -115,6 +166,12 @@ def main():
     for y in years:
         name, meaning = palace_in_year(honmei, y)
         print(f"  {y}年（年の星：{STARS[year_star(y)]}）→ 本命星は{name}：{meaning}")
+        good, bad = lucky_directions(honmei, y)
+        g = "、".join(f"{d}（{STARS[st]}・{rel}）" for d, st, rel in good) or "なし"
+        b = "、".join(f"{d}（{'・'.join(w)}）" for d, w in bad.items())
+        print(f"    吉方位：{g}")
+        print(f"    除いた凶方位：{b}")
+    print("※吉方位は年盤だけで見たもの（立春から翌立春まで）。流派で差があるので、鑑定では「方角としても力を向けやすい」程度に書き、引っ越しや契約など大きな決断を方角だけで勧めない")
 
 
 if __name__ == "__main__":
