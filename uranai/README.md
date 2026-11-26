@@ -8,6 +8,7 @@
 - `dist/` … 上の3つをつなげた、貼り付け用のプロンプト（自動で作るので直接直さない）
 - `knowhow.md` … ユーザーが集めた占い集客のノウハウの要点（プロンプトの土台）
 - `tools/kyusei.py` … 九星気学の計算（本命星・月命星・年の巡り）。`python3 uranai/tools/kyusei.py 1967-09-13 2026 2027`
+- `tools/check.py` … 書き上げた鑑定文・返信を、くり返しやすいミス（理由の決めつけ、誰にも・必ず等の断定、紛らわしい語、禁止のたとえ等）で洗い出す。`python3 uranai/tools/check.py --mode honkantei --char tsuruha 下書き.txt`
 
 ## 使い方
 - 貼り付けるのは `dist/` の中のファイル
